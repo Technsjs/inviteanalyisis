@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { SiteEditor } from "@/components/site-editor";
 import { SiteHome } from "@/components/site-home";
 import { SiteView } from "@/components/site-view";
+import { RenewModal } from "@/components/renew-modal";
 import {
   DEFAULT_ENV,
   mergeEnvConfig,
@@ -12,7 +13,6 @@ import {
   type EnvConfig,
 } from "@/lib/env-config";
 import {
-  deleteSite,
   listSites,
   saveSite,
   type SavedSite,
@@ -31,6 +31,7 @@ export function EnvConfigurator() {
   const [setupError, setSetupError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [redisOverride, setRedisOverride] = useState(false);
+  const [renewOpen, setRenewOpen] = useState(false);
 
   const output = useMemo(() => serializeEnv(config), [config]);
 
@@ -104,11 +105,20 @@ export function EnvConfigurator() {
     notify("Copied");
   };
 
-  const handleDelete = async (siteId: string) => {
-    await deleteSite(siteId);
-    await refresh();
-    notify("Deleted");
-    if (config.siteId === siteId) setScreen("home");
+  const handleRenew = async (eventDate: string) => {
+    const updated = { ...config, eventDate };
+    setSaving(true);
+    try {
+      await saveSite(updated);
+      setConfig(updated);
+      await refresh();
+      setRenewOpen(false);
+      notify("Renewed");
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Renew failed");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const backFromEdit = () => {
@@ -136,22 +146,34 @@ export function EnvConfigurator() {
             setupError={setupError}
             onNew={openNew}
             onOpen={openSite}
-            onDelete={handleDelete}
           />
         </>
       )}
 
       {screen === "view" && (
-        <SiteView
-          config={config}
-          sites={sites}
-          onBack={() => setScreen("home")}
-          onEdit={() => {
-            setRedisOverride(false);
-            setScreen("edit");
-          }}
-          onCopy={handleCopy}
-        />
+        <>
+          <SiteView
+            config={config}
+            sites={sites}
+            onBack={() => setScreen("home")}
+            onEdit={() => {
+              setRedisOverride(false);
+              setScreen("edit");
+            }}
+            onCopy={handleCopy}
+            onRenew={() => setRenewOpen(true)}
+          />
+          {renewOpen && (
+            <RenewModal
+              siteId={config.siteId}
+              currentDate={config.eventDate}
+              currentTime={config.eventTime}
+              saving={saving}
+              onClose={() => setRenewOpen(false)}
+              onConfirm={handleRenew}
+            />
+          )}
+        </>
       )}
 
       {screen === "edit" && (

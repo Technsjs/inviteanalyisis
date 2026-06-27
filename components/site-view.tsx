@@ -26,12 +26,14 @@ export function SiteView({
   onBack,
   onEdit,
   onCopy,
+  onRenew,
 }: {
   config: EnvConfig;
   sites: SavedSite[];
   onBack: () => void;
   onEdit: () => void;
   onCopy: () => void;
+  onRenew: () => void;
 }) {
   const visitUrl = normalizeSiteUrl(config.siteUrl);
   const redisLabel = getSiteRedisLabel(config.siteId, config, sites);
@@ -115,8 +117,15 @@ export function SiteView({
           </button>
           <button
             type="button"
+            onClick={onRenew}
+            className="rounded-full border border-neutral-300 px-5 py-3 text-[15px] font-semibold"
+          >
+            Renew
+          </button>
+          <button
+            type="button"
             onClick={onEdit}
-            className="rounded-full border border-neutral-300 px-6 py-3 text-[15px] font-semibold"
+            className="rounded-full border border-neutral-300 px-5 py-3 text-[15px] font-semibold"
           >
             Edit
           </button>

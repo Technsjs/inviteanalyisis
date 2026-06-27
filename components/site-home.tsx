@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo } from "react";
 import { TimeLeft } from "@/components/time-left";
 import { RedisSlotBadge, getSiteRedisLabel } from "@/components/redis-pool-panel";
-import { formatExpiryShort } from "@/lib/expiry";
+import { formatExpiryShort, sortSitesByEventDate } from "@/lib/expiry";
 import { normalizeSiteUrl, siteHost } from "@/lib/url";
 import type { SavedSite } from "@/lib/sites-store";
 
@@ -11,14 +11,11 @@ function SiteRow({
   site,
   sites,
   onOpen,
-  onDelete,
 }: {
   site: SavedSite;
   sites: SavedSite[];
   onOpen: () => void;
-  onDelete: () => void;
 }) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const visitUrl = normalizeSiteUrl(site.config.siteUrl);
   const redisLabel = getSiteRedisLabel(site.siteId, site.config, sites);
 
@@ -48,8 +45,8 @@ function SiteRow({
         <TimeLeft config={site.config} size="list" />
       </button>
 
-      <div className="flex items-center justify-between gap-3 px-4 pb-3">
-        {visitUrl ? (
+      {visitUrl && (
+        <div className="px-4 pb-3">
           <a
             href={visitUrl}
             target="_blank"
@@ -59,40 +56,8 @@ function SiteRow({
           >
             {siteHost(site.config.siteUrl)}
           </a>
-        ) : (
-          <span className="text-[13px] text-neutral-400">No URL</span>
-        )}
-
-        {confirmDelete ? (
-          <div className="flex shrink-0 gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                onDelete();
-                setConfirmDelete(false);
-              }}
-              className="text-[13px] font-medium text-red-500"
-            >
-              Delete
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmDelete(false)}
-              className="text-[13px] text-neutral-500"
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(true)}
-            className="shrink-0 text-[13px] text-neutral-400"
-          >
-            ···
-          </button>
-        )}
-      </div>
+        </div>
+      )}
     </li>
   );
 }
@@ -103,15 +68,15 @@ export function SiteHome({
   setupError,
   onNew,
   onOpen,
-  onDelete,
 }: {
   sites: SavedSite[];
   loading: boolean;
   setupError: string | null;
   onNew: () => void;
   onOpen: (site: SavedSite) => void;
-  onDelete: (siteId: string) => void;
 }) {
+  const sortedSites = useMemo(() => sortSitesByEventDate(sites), [sites]);
+
   return (
     <div className="mx-auto w-full max-w-lg pb-24">
       {setupError && (
@@ -145,13 +110,12 @@ export function SiteHome({
         </div>
       ) : (
         <ul>
-          {sites.map((site) => (
+          {sortedSites.map((site) => (
             <SiteRow
               key={site.siteId}
               site={site}
               sites={sites}
               onOpen={() => onOpen(site)}
-              onDelete={() => onDelete(site.siteId)}
             />
           ))}
         </ul>

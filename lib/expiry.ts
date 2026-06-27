@@ -72,11 +72,25 @@ export function formatExpiryShort(
   });
 }
 
+export function eventDateMs(
+  config: Pick<EnvConfig, "eventDate" | "eventTime">,
+): number {
+  const d = getExpiryDate(config);
+  return d?.getTime() ?? Number.MAX_SAFE_INTEGER;
+}
+
+export function sortSitesByEventDate<T extends { config: Pick<EnvConfig, "eventDate" | "eventTime"> }>(
+  sites: T[],
+): T[] {
+  return [...sites].sort((a, b) => eventDateMs(a.config) - eventDateMs(b.config));
+}
+
 export function statusTone(
   c: Countdown | null,
 ): "ok" | "warn" | "danger" | "muted" {
   if (!c) return "muted";
   if (c.expired) return "danger";
-  if (c.totalMs < 86_400_000 * 3) return "warn";
+  // ≤2 days left → red
+  if (c.totalMs <= 86_400_000 * 2) return "danger";
   return "ok";
 }
