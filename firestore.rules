@@ -1,0 +1,9 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /sites/{siteId} {
+      // TODO: add Firebase Auth and require request.auth != null
+      allow read, write: if true;
+    }
+  }
+}
