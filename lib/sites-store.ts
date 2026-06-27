@@ -36,8 +36,3 @@ export async function saveSite(config: EnvConfig): Promise<void> {
 export async function deleteSite(siteId: string): Promise<void> {
   await api(`/api/sites/${encodeURIComponent(siteId)}`, { method: "DELETE" });
 }
-
-export function countRedisSlots(sites: SavedSite[], redisUrl: string): number {
-  if (!redisUrl) return 0;
-  return sites.filter((s) => s.config.upstashRedisUrl === redisUrl).length;
-}

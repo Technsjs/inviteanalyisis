@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SiteEditor } from "@/components/site-editor";
 import { SiteHome } from "@/components/site-home";
+import { SiteView } from "@/components/site-view";
 import {
   DEFAULT_ENV,
   mergeEnvConfig,
@@ -16,8 +17,9 @@ import {
   saveSite,
   type SavedSite,
 } from "@/lib/sites-store";
+import { isPoolFullForSite } from "@/lib/redis-pool";
 
-type Screen = "home" | "editor";
+type Screen = "home" | "view" | "edit";
 
 export function EnvConfigurator() {
   const [screen, setScreen] = useState<Screen>("home");
@@ -28,6 +30,7 @@ export function EnvConfigurator() {
   const [saving, setSaving] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [redisOverride, setRedisOverride] = useState(false);
 
   const output = useMemo(() => serializeEnv(config), [config]);
 
@@ -54,18 +57,20 @@ export function EnvConfigurator() {
   const openNew = () => {
     setConfig(DEFAULT_ENV);
     setIsNew(true);
-    setScreen("editor");
+    setRedisOverride(false);
+    setScreen("edit");
   };
 
   const openSite = (site: SavedSite) => {
     setConfig(site.config);
     setIsNew(false);
-    setScreen("editor");
+    setScreen("view");
   };
 
   const applyPaste = (text: string) => {
     const parsed = parseEnvText(text);
     if (Object.keys(parsed).length === 0) return;
+    // Paste is source of truth — keep URL & webhook from .env as pasted
     setConfig(mergeEnvConfig(parsed));
     notify("Imported");
   };
@@ -75,12 +80,18 @@ export function EnvConfigurator() {
       notify("Site ID required");
       return;
     }
+    const poolFull = isPoolFullForSite(sites, config, config.siteId, isNew);
+    if (poolFull && !redisOverride) {
+      notify("Redis full — change Redis or enable override");
+      return;
+    }
     setSaving(true);
     try {
       await saveSite(config);
       await refresh();
       setIsNew(false);
       notify("Saved");
+      setScreen("view");
     } catch (e) {
       notify(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -100,6 +111,10 @@ export function EnvConfigurator() {
     if (config.siteId === siteId) setScreen("home");
   };
 
+  const backFromEdit = () => {
+    setScreen(isNew ? "home" : "view");
+  };
+
   return (
     <div className="min-h-full bg-white">
       {toast && (
@@ -108,7 +123,7 @@ export function EnvConfigurator() {
         </div>
       )}
 
-      {screen === "home" ? (
+      {screen === "home" && (
         <>
           <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white">
             <div className="mx-auto max-w-lg px-4 py-4">
@@ -124,17 +139,33 @@ export function EnvConfigurator() {
             onDelete={handleDelete}
           />
         </>
-      ) : (
+      )}
+
+      {screen === "view" && (
+        <SiteView
+          config={config}
+          sites={sites}
+          onBack={() => setScreen("home")}
+          onEdit={() => {
+            setRedisOverride(false);
+            setScreen("edit");
+          }}
+          onCopy={handleCopy}
+        />
+      )}
+
+      {screen === "edit" && (
         <SiteEditor
           config={config}
           sites={sites}
           isNew={isNew}
           saving={saving}
-          onBack={() => setScreen("home")}
+          onBack={backFromEdit}
           onChange={setConfig}
           onSave={handleSave}
-          onCopy={handleCopy}
           onPaste={applyPaste}
+          redisOverride={redisOverride}
+          onRedisOverrideChange={setRedisOverride}
         />
       )}
     </div>

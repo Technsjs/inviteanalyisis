@@ -2,21 +2,25 @@
 
 import { useState } from "react";
 import { TimeLeft } from "@/components/time-left";
+import { RedisSlotBadge, getSiteRedisLabel } from "@/components/redis-pool-panel";
 import { formatExpiryShort } from "@/lib/expiry";
 import { normalizeSiteUrl, siteHost } from "@/lib/url";
 import type { SavedSite } from "@/lib/sites-store";
 
 function SiteRow({
   site,
+  sites,
   onOpen,
   onDelete,
 }: {
   site: SavedSite;
+  sites: SavedSite[];
   onOpen: () => void;
   onDelete: () => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const visitUrl = normalizeSiteUrl(site.config.siteUrl);
+  const redisLabel = getSiteRedisLabel(site.siteId, site.config, sites);
 
   return (
     <li className="border-b border-neutral-200">
@@ -26,9 +30,17 @@ function SiteRow({
         className="flex w-full items-center gap-3 px-4 py-4 text-left active:bg-neutral-50"
       >
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold text-neutral-900">
-            {site.siteId}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="truncate text-[15px] font-semibold text-neutral-900">
+              {site.siteId}
+            </p>
+            {redisLabel && (
+              <RedisSlotBadge
+                label={redisLabel.label}
+                full={redisLabel.isFull}
+              />
+            )}
+          </div>
           <p className="mt-0.5 truncate text-[13px] text-neutral-500">
             Expires {formatExpiryShort(site.config)}
           </p>
@@ -137,6 +149,7 @@ export function SiteHome({
             <SiteRow
               key={site.siteId}
               site={site}
+              sites={sites}
               onOpen={() => onOpen(site)}
               onDelete={() => onDelete(site.siteId)}
             />

@@ -103,11 +103,19 @@ export function deriveFromSiteId(siteId: string): Pick<
   EnvConfig,
   "siteUrl" | "telegramWebhookSecret"
 > {
-  const slug = siteId.trim();
+  const slug = siteId.trim().toLowerCase().replace(/\s+/g, "-");
+  if (!slug) {
+    return { siteUrl: "", telegramWebhookSecret: "" };
+  }
   return {
     siteUrl: `https://${slug}.vercel.app/`,
     telegramWebhookSecret: `${slug}-webhook-secret-2026`,
   };
+}
+
+/** Apply URL + webhook derivations from siteId (manual edit flow). */
+export function withSiteIdDerivations(config: EnvConfig): EnvConfig {
+  return { ...config, ...deriveFromSiteId(config.siteId) };
 }
 
 export function serializeEnv(config: EnvConfig): string {

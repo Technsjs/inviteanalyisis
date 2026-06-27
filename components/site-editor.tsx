@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { TimeLeft } from "@/components/time-left";
 import { formatExpiryShort } from "@/lib/expiry";
-import { deriveFromSiteId, type EnvConfig } from "@/lib/env-config";
-import { countRedisSlots, type SavedSite } from "@/lib/sites-store";
-import { normalizeSiteUrl, siteHost } from "@/lib/url";
+import { deriveFromSiteId, withSiteIdDerivations, type EnvConfig } from "@/lib/env-config";
+import { RedisPoolPanel } from "@/components/redis-pool-panel";
+import type { SavedSite } from "@/lib/sites-store";
 
 function Field({
   label,
@@ -13,21 +12,33 @@ function Field({
   onChange,
   type = "text",
   mono,
+  auto,
+  readOnly,
 }: {
   label: string;
   value: string;
-  onChange: (v: string) => void;
+  onChange?: (v: string) => void;
   type?: string;
   mono?: boolean;
+  auto?: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <label className="block border-b border-neutral-200 py-3">
-      <span className="text-[13px] text-neutral-500">{label}</span>
+      <span className="flex items-center gap-2 text-[13px] text-neutral-500">
+        {label}
+        {auto && (
+          <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">
+            auto
+          </span>
+        )}
+      </span>
       <input
         type={type}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={`mt-1 w-full bg-transparent text-[15px] text-neutral-900 outline-none ${mono ? "font-mono text-[13px]" : ""}`}
+        readOnly={readOnly}
+        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+        className={`mt-1 w-full bg-transparent text-[15px] text-neutral-900 outline-none ${mono ? "font-mono text-[13px]" : ""} ${readOnly ? "text-neutral-500" : ""}`}
       />
     </label>
   );
@@ -56,8 +67,9 @@ export function SiteEditor({
   onBack,
   onChange,
   onSave,
-  onCopy,
   onPaste,
+  redisOverride,
+  onRedisOverrideChange,
 }: {
   config: EnvConfig;
   sites: SavedSite[];
@@ -66,20 +78,21 @@ export function SiteEditor({
   onBack: () => void;
   onChange: (config: EnvConfig) => void;
   onSave: () => void;
-  onCopy: () => void;
   onPaste: (text: string) => void;
+  redisOverride: boolean;
+  onRedisOverrideChange: (v: boolean) => void;
 }) {
   const [showMore, setShowMore] = useState(false);
-  const redisCount = countRedisSlots(sites, config.upstashRedisUrl);
-  const visitUrl = normalizeSiteUrl(config.siteUrl);
 
   const update = <K extends keyof EnvConfig>(key: K, value: EnvConfig[K]) => {
-    const next = { ...config, [key]: value };
+    let next = { ...config, [key]: value };
     if (key === "siteId" && typeof value === "string") {
-      Object.assign(next, deriveFromSiteId(value));
+      next = withSiteIdDerivations(next);
     }
     onChange(next);
   };
+
+  const derived = deriveFromSiteId(config.siteId);
 
   return (
     <div className="flex min-h-full flex-col bg-white">
@@ -88,42 +101,32 @@ export function SiteEditor({
           <button
             type="button"
             onClick={onBack}
-            className="flex h-10 w-10 items-center justify-center text-xl text-neutral-900"
+            className="flex h-10 w-10 items-center justify-center text-xl"
             aria-label="Back"
           >
             ←
           </button>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-semibold">
-              {isNew ? "New site" : config.siteId}
+              {isNew ? "New site" : `Edit ${config.siteId}`}
             </p>
+            {!isNew && (
+              <p className="text-[13px] text-neutral-500">
+                Expires {formatExpiryShort(config)}
+              </p>
+            )}
           </div>
-        </div>
-
-        <div className="border-t border-neutral-100 px-4 pb-4 pt-3">
-          <TimeLeft config={config} size="hero" />
-          <p className="mt-1 text-[13px] text-neutral-500">
-            Expires {formatExpiryShort(config)}
-            {config.eventTime ? ` · ${config.eventTime}` : ""}
-          </p>
-          {visitUrl && (
-            <a
-              href={visitUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 inline-block text-[13px] font-medium text-neutral-900 underline underline-offset-2"
-            >
-              Visit {siteHost(config.siteUrl)} ↗
-            </a>
-          )}
         </div>
       </header>
 
       <div className="flex-1 pb-28">
         <Section title="Import">
+          <p className="mb-2 text-[13px] text-neutral-500">
+            Paste full .env — or edit fields below
+          </p>
           <textarea
-            placeholder="Paste .env…"
-            rows={3}
+            placeholder="SITE_ID=invitey-nine&#10;NEXT_PUBLIC_SITE_URL=..."
+            rows={4}
             onPaste={(e) => {
               const text = e.clipboardData.getData("text");
               requestAnimationFrame(() => onPaste(text));
@@ -142,17 +145,36 @@ export function SiteEditor({
             onChange={(v) => update("siteId", v)}
           />
           <Field
+            label="Site URL"
+            value={config.siteUrl}
+            onChange={(v) => update("siteUrl", v)}
+            mono
+            auto
+          />
+          {config.siteUrl !== derived.siteUrl && config.siteId && (
+            <p className="py-1 text-[11px] text-amber-600">
+              Auto would be: {derived.siteUrl}
+            </p>
+          )}
+          <Field
             label="Expiry date"
             type="date"
             value={config.eventDate}
             onChange={(v) => update("eventDate", v)}
           />
           <Field
-            label="Site URL"
-            value={config.siteUrl}
-            onChange={(v) => update("siteUrl", v)}
+            label="Webhook secret"
+            value={config.telegramWebhookSecret}
+            onChange={(v) => update("telegramWebhookSecret", v)}
             mono
+            auto
           />
+          {config.telegramWebhookSecret !== derived.telegramWebhookSecret &&
+            config.siteId && (
+              <p className="py-1 text-[11px] text-amber-600">
+                Auto would be: {derived.telegramWebhookSecret}
+              </p>
+            )}
         </Section>
 
         <Section title="Telegram">
@@ -178,15 +200,17 @@ export function SiteEditor({
             value={config.telegramOtherChatId}
             onChange={(v) => update("telegramOtherChatId", v)}
           />
-          <Field
-            label="Webhook secret"
-            value={config.telegramWebhookSecret}
-            onChange={(v) => update("telegramWebhookSecret", v)}
-            mono
-          />
         </Section>
 
-        <Section title={`Redis · ${redisCount}/5`}>
+        <Section title="Redis">
+          <RedisPoolPanel
+            siteId={config.siteId}
+            config={config}
+            sites={sites}
+            isNew={isNew}
+            override={redisOverride}
+            onOverrideChange={onRedisOverrideChange}
+          />
           <Field
             label="Redis URL"
             value={config.upstashRedisUrl}
@@ -244,21 +268,14 @@ export function SiteEditor({
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-200 bg-white">
-        <div className="mx-auto flex max-w-lg gap-2 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto flex max-w-lg px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             onClick={onSave}
             disabled={saving}
-            className="flex-1 rounded-full bg-neutral-900 py-3 text-[15px] font-semibold text-white disabled:opacity-50"
+            className="w-full rounded-full bg-neutral-900 py-3 text-[15px] font-semibold text-white disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}
-          </button>
-          <button
-            type="button"
-            onClick={onCopy}
-            className="rounded-full border border-neutral-300 px-5 py-3 text-[15px] font-semibold text-neutral-900"
-          >
-            Copy
           </button>
         </div>
       </div>
