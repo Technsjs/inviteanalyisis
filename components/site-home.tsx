@@ -1,10 +1,12 @@
 "use client";
 
-import { CountdownBadge } from "@/components/countdown";
-import { formatExpiryLabel, getCountdown, statusTone } from "@/lib/expiry";
+import { useState } from "react";
+import { TimeLeft } from "@/components/time-left";
+import { formatExpiryShort } from "@/lib/expiry";
+import { normalizeSiteUrl, siteHost } from "@/lib/url";
 import type { SavedSite } from "@/lib/sites-store";
 
-function SiteCard({
+function SiteRow({
   site,
   onOpen,
   onDelete,
@@ -13,68 +15,73 @@ function SiteCard({
   onOpen: () => void;
   onDelete: () => void;
 }) {
-  const cd = getCountdown(site.config);
-  const tone = statusTone(cd);
-  const ring =
-    tone === "danger"
-      ? "border-red-200"
-      : tone === "warn"
-        ? "border-amber-200"
-        : "border-zinc-200";
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const visitUrl = normalizeSiteUrl(site.config.siteUrl);
 
   return (
-    <article
-      className={`rounded-2xl border bg-white p-4 shadow-sm active:scale-[0.99] transition ${ring}`}
-    >
-      <button type="button" onClick={onOpen} className="w-full text-left">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h2 className="truncate text-base font-semibold text-zinc-900">
-              {site.siteId}
-            </h2>
-            <p className="mt-1 truncate text-xs text-zinc-500">
-              {site.config.siteUrl.replace(/^https?:\/\//, "")}
-            </p>
-          </div>
-          <CountdownBadge config={site.config} />
+    <li className="border-b border-neutral-200">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex w-full items-center gap-3 px-4 py-4 text-left active:bg-neutral-50"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[15px] font-semibold text-neutral-900">
+            {site.siteId}
+          </p>
+          <p className="mt-0.5 truncate text-[13px] text-neutral-500">
+            Expires {formatExpiryShort(site.config)}
+          </p>
         </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-xl bg-zinc-50 px-3 py-2">
-            <p className="text-zinc-400">Expires</p>
-            <p className="mt-0.5 font-medium text-zinc-700">
-              {formatExpiryLabel(site.config)}
-            </p>
-          </div>
-          <div className="rounded-xl bg-zinc-50 px-3 py-2">
-            <p className="text-zinc-400">Telegram</p>
-            <p className="mt-0.5 font-medium text-zinc-700">
-              {site.config.telegramGmailChatId ? "Configured" : "Missing"}
-            </p>
-          </div>
-        </div>
+        <TimeLeft config={site.config} size="list" />
       </button>
 
-      <div className="mt-3 flex gap-2 border-t border-zinc-100 pt-3">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-medium text-white"
-        >
-          Open
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm text-zinc-500"
-        >
-          Delete
-        </button>
+      <div className="flex items-center justify-between gap-3 px-4 pb-3">
+        {visitUrl ? (
+          <a
+            href={visitUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="truncate text-[13px] font-medium text-neutral-900 underline underline-offset-2"
+          >
+            {siteHost(site.config.siteUrl)}
+          </a>
+        ) : (
+          <span className="text-[13px] text-neutral-400">No URL</span>
+        )}
+
+        {confirmDelete ? (
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onDelete();
+                setConfirmDelete(false);
+              }}
+              className="text-[13px] font-medium text-red-500"
+            >
+              Delete
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(false)}
+              className="text-[13px] text-neutral-500"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            className="shrink-0 text-[13px] text-neutral-400"
+          >
+            ···
+          </button>
+        )}
       </div>
-    </article>
+    </li>
   );
 }
 
@@ -94,66 +101,54 @@ export function SiteHome({
   onDelete: (siteId: string) => void;
 }) {
   return (
-    <div className="mx-auto w-full max-w-lg px-4 pb-28 pt-4 sm:max-w-2xl sm:px-6 sm:pt-6">
+    <div className="mx-auto w-full max-w-lg pb-24">
       {setupError && (
-        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
-          <p className="font-semibold">Firebase not connected</p>
-          <p className="mt-1">{setupError}</p>
-        </div>
+        <p className="border-b border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+          {setupError}
+        </p>
       )}
 
       {loading ? (
-        <div className="space-y-3">
+        <ul>
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-36 animate-pulse rounded-2xl bg-white" />
+            <li
+              key={i}
+              className="border-b border-neutral-200 px-4 py-5"
+            >
+              <div className="h-4 w-32 animate-pulse rounded bg-neutral-100" />
+              <div className="mt-2 h-3 w-20 animate-pulse rounded bg-neutral-100" />
+            </li>
           ))}
-        </div>
+        </ul>
       ) : sites.length === 0 ? (
-        <div className="flex min-h-[60vh] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-16 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-2xl">
-            +
-          </div>
-          <h2 className="mt-4 text-lg font-semibold text-zinc-900">No sites yet</h2>
-          <p className="mt-2 max-w-xs text-sm text-zinc-500">
-            Create a new invite site config, paste your .env, and save it here.
-          </p>
+        <div className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
+          <p className="text-[15px] text-neutral-500">No sites yet</p>
           <button
             type="button"
             onClick={onNew}
-            className="mt-6 w-full max-w-xs rounded-xl bg-indigo-600 py-3.5 text-sm font-semibold text-white shadow-sm"
+            className="mt-6 rounded-full bg-neutral-900 px-8 py-3 text-[15px] font-semibold text-white"
           >
             New site
           </button>
         </div>
       ) : (
-        <>
-          <div className="mb-4 flex items-end justify-between">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-                Your sites
-              </p>
-              <p className="text-2xl font-semibold text-zinc-900">{sites.length}</p>
-            </div>
-          </div>
-          <ul className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0">
-            {sites.map((site) => (
-              <li key={site.siteId}>
-                <SiteCard
-                  site={site}
-                  onOpen={() => onOpen(site)}
-                  onDelete={() => onDelete(site.siteId)}
-                />
-              </li>
-            ))}
-          </ul>
-        </>
+        <ul>
+          {sites.map((site) => (
+            <SiteRow
+              key={site.siteId}
+              site={site}
+              onOpen={() => onOpen(site)}
+              onDelete={() => onDelete(site.siteId)}
+            />
+          ))}
+        </ul>
       )}
 
       {sites.length > 0 && (
         <button
           type="button"
           onClick={onNew}
-          className="fixed bottom-6 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-2xl text-white shadow-lg shadow-indigo-600/30 active:scale-95 sm:right-8"
+          className="fixed bottom-6 right-5 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-900 text-xl text-white shadow-md active:scale-95"
           aria-label="New site"
         >
           +

@@ -18,35 +18,22 @@ import {
 } from "@/lib/sites-store";
 
 type Screen = "home" | "editor";
-type Toast = { message: string; type: "ok" | "err" | "info" };
-
-function ToastBar({ toast }: { toast: Toast | null }) {
-  if (!toast) return null;
-  const colors = { ok: "bg-emerald-600", err: "bg-red-500", info: "bg-indigo-600" };
-  return (
-    <div
-      className={`fixed left-1/2 top-4 z-50 -translate-x-1/2 animate-fade-up rounded-full px-4 py-2 text-sm font-medium text-white shadow-lg ${colors[toast.type]}`}
-    >
-      {toast.message}
-    </div>
-  );
-}
 
 export function EnvConfigurator() {
   const [screen, setScreen] = useState<Screen>("home");
   const [config, setConfig] = useState<EnvConfig>(DEFAULT_ENV);
   const [isNew, setIsNew] = useState(true);
   const [sites, setSites] = useState<SavedSite[]>([]);
-  const [toast, setToast] = useState<Toast | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   const output = useMemo(() => serializeEnv(config), [config]);
 
-  const notify = useCallback((message: string, type: Toast["type"] = "info") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 2400);
+  const notify = useCallback((message: string) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 2000);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -54,8 +41,7 @@ export function EnvConfigurator() {
       setSites(await listSites());
       setSetupError(null);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Could not load sites";
-      setSetupError(msg);
+      setSetupError(e instanceof Error ? e.message : "Could not load sites");
     } finally {
       setLoading(false);
     }
@@ -77,24 +63,26 @@ export function EnvConfigurator() {
     setScreen("editor");
   };
 
-  const goHome = () => setScreen("home");
-
   const applyPaste = (text: string) => {
     const parsed = parseEnvText(text);
     if (Object.keys(parsed).length === 0) return;
     setConfig(mergeEnvConfig(parsed));
-    notify(`Loaded ${Object.keys(parsed).length} values`, "ok");
+    notify("Imported");
   };
 
   const handleSave = async () => {
+    if (!config.siteId.trim()) {
+      notify("Site ID required");
+      return;
+    }
     setSaving(true);
     try {
       await saveSite(config);
       await refresh();
       setIsNew(false);
-      notify(`Saved ${config.siteId}`, "ok");
+      notify("Saved");
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Save failed", "err");
+      notify(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaving(false);
     }
@@ -102,27 +90,29 @@ export function EnvConfigurator() {
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(output);
-    notify("Copied to clipboard", "ok");
+    notify("Copied");
   };
 
   const handleDelete = async (siteId: string) => {
-    if (!confirm(`Delete ${siteId}?`)) return;
     await deleteSite(siteId);
     await refresh();
-    notify(`Deleted ${siteId}`, "info");
-    if (config.siteId === siteId) goHome();
+    notify("Deleted");
+    if (config.siteId === siteId) setScreen("home");
   };
 
   return (
-    <div className="min-h-full bg-zinc-100">
-      <ToastBar toast={toast} />
+    <div className="min-h-full bg-white">
+      {toast && (
+        <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-full bg-neutral-900 px-4 py-2 text-[13px] font-medium text-white">
+          {toast}
+        </div>
+      )}
 
       {screen === "home" ? (
         <>
-          <header className="sticky top-0 z-40 border-b border-zinc-200/80 bg-white/95 backdrop-blur-xl">
-            <div className="mx-auto max-w-lg px-4 py-4 sm:max-w-2xl sm:px-6">
-              <h1 className="text-xl font-semibold text-zinc-900">Invite Setup</h1>
-              <p className="text-sm text-zinc-500">Manage your Vercel sites</p>
+          <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white">
+            <div className="mx-auto max-w-lg px-4 py-4">
+              <h1 className="text-[17px] font-semibold">Sites</h1>
             </div>
           </header>
           <SiteHome
@@ -140,7 +130,7 @@ export function EnvConfigurator() {
           sites={sites}
           isNew={isNew}
           saving={saving}
-          onBack={goHome}
+          onBack={() => setScreen("home")}
           onChange={setConfig}
           onSave={handleSave}
           onCopy={handleCopy}

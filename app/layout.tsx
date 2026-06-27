@@ -13,14 +13,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Invite Setup",
-  description: "Env configurator for Vercel invite sites",
+  title: "Sites",
+  description: "Manage invite site deployments",
+  robots: { index: false, follow: false },
+  appleWebApp: { capable: true, title: "Sites" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#4f46e5",
+  maximumScale: 1,
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({
